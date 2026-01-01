@@ -66,6 +66,7 @@ CUSTOM_HTML_CSS = """
         padding: 15px;
         border-radius: 5px;
         margin: 10px 0;
+        color: #1a1a1a; 
     }
     
     .warning-box {
@@ -74,6 +75,7 @@ CUSTOM_HTML_CSS = """
         padding: 15px;
         border-radius: 5px;
         margin: 10px 0;
+        color: #664d03
     }
     
     .success-box {
