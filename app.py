@@ -34,9 +34,6 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 
-import warnings
-warnings.filterwarnings("ignore")
-
 
 # ================================================
 # CUSTOM HTML/CSS STYLING
@@ -197,9 +194,8 @@ st.markdown("""
 
 
 # ================================================
-# BEST FREE MODELS FOR THIS PROJECT
+# PROFESSIONAL AI SYSTEM PROMPT
 # ================================================
-
 
 SYSTEM_PROMPT_DATA_ANALYST = """You are an EXPERT DATA ANALYST with 15+ years of experience in:
 
@@ -244,6 +240,10 @@ SYSTEM_PROMPT_DATA_ANALYST = """You are an EXPERT DATA ANALYST with 15+ years of
 - Recommended actions based on data"""
 
 
+# ================================================
+# BEST FREE MODELS FOR THIS PROJECT
+# ================================================
+
 FREE_MODELS = {
     "🌟 Gemini 2.0 Flash (BEST - 10M context)": "google/gemini-2.0-flash-exp:free",
     "🚀 Llama 3.1 405B (Powerful & Fast)": "meta-llama/llama-3.1-405b-instruct:free",
@@ -279,12 +279,13 @@ with st.sidebar:
     model_display = st.selectbox("Select Best Model for Your Task", list(FREE_MODELS.keys()))
     model_id = FREE_MODELS[model_display]
     
-    st.info(f"✅ Selected: {model_display}\n\n📌 Free Tier: $0 per 1M tokens")
+    st.info(f"✅ Selected: {model_display}\n\n📌 Free Tier: $0 per 1M tokens\n\n💡 System Prompt: Professional Data Analyst")
     
     # Analysis Settings
     st.markdown("### 🔧 Analysis Settings")
     confidence_level = st.slider("Confidence Level", 0.80, 0.99, 0.95, 0.01)
     correlation_threshold = st.slider("Correlation Threshold", 0.0, 1.0, 0.5, 0.1)
+    p_value_threshold = st.slider("P-Value Significance", 0.01, 0.10, 0.05, 0.01)
     
     # Missing Value Strategy
     st.markdown("### 🛠️ Missing Value Strategy")
@@ -299,6 +300,7 @@ with st.sidebar:
         help="Most Frequent preserves distribution"
     )
     
+    # Advanced Options
     st.markdown("### 🚀 Advanced Options")
     enable_anomaly = st.checkbox("🚨 Enable Anomaly Detection", value=True)
     enable_vif = st.checkbox("🔗 Enable Multicollinearity Check (VIF)", value=False)
@@ -315,7 +317,7 @@ with st.sidebar:
             st.info("Session export feature coming soon")
     
     st.markdown("---")
-    st.caption("Data Analyst AI Pro v2.2 • Made with ❤️")
+    st.caption("Data Analyst AI Pro v2.3 • Made with ❤️")
 
 
 # ================================================
@@ -340,10 +342,11 @@ if "analysis_history" not in st.session_state:
 # UTILITY FUNCTIONS
 # ================================================
 
-def handle_missing_values(df, numeric_strat="median", categorical_strat="most_frequent"):
-    """
-    Handle missing values separately for numeric and categorical columns
-    """
+def handle_missing_values(df, numeric_strat="Median", categorical_strat="Most Frequent"):
+    """Handle missing values separately for numeric and categorical columns"""
+    if df is None or df.empty:
+        return df
+    
     df_filled = df.copy()
     num_cols = df.select_dtypes(include='number').columns.tolist()
     cat_cols = df.select_dtypes(include='object').columns.tolist()
@@ -374,6 +377,18 @@ def handle_missing_values(df, numeric_strat="median", categorical_strat="most_fr
 
 def calculate_advanced_statistics(df):
     """Calculate comprehensive statistics for both numeric and categorical data"""
+    if df is None or df.empty or not isinstance(df, pd.DataFrame):
+        return {
+            "shape": (0, 0),
+            "memory": 0.0,
+            "numeric_cols": [],
+            "categorical_cols": [],
+            "missing_pct": {},
+            "duplicates": 0,
+            "numeric_stats": {},
+            "categorical_stats": {},
+        }
+    
     num_cols = df.select_dtypes(include='number').columns.tolist()
     cat_cols = df.select_dtypes(include='object').columns.tolist()
     
@@ -392,24 +407,31 @@ def calculate_advanced_statistics(df):
 
 def detect_anomalies(df, numeric_cols, method="iqr"):
     """Detect anomalies using IQR or Isolation Forest"""
+    if not numeric_cols or df is None:
+        return {}
+    
     anomalies = {}
     
     if method == "iqr":
         for col in numeric_cols:
-            Q1 = df[col].quantile(0.25)
-            Q3 = df[col].quantile(0.75)
-            IQR = Q3 - Q1
-            lower = Q1 - 1.5 * IQR
-            upper = Q3 + 1.5 * IQR
-            outliers = df[(df[col] < lower) | (df[col] > upper)][col].tolist()
-            anomalies[col] = {
-                "count": len(outliers),
-                "percentage": len(outliers) / len(df) * 100,
-                "bounds": (lower, upper)
-            }
+            try:
+                Q1 = df[col].quantile(0.25)
+                Q3 = df[col].quantile(0.75)
+                IQR = Q3 - Q1
+                lower = Q1 - 1.5 * IQR
+                upper = Q3 + 1.5 * IQR
+                outliers = df[(df[col] < lower) | (df[col] > upper)][col].tolist()
+                anomalies[col] = {
+                    "count": len(outliers),
+                    "percentage": len(outliers) / len(df) * 100 if len(df) > 0 else 0,
+                    "bounds": (lower, upper)
+                }
+            except:
+                pass
+    
     elif method == "isolation_forest":
-        iso_forest = IsolationForest(contamination=0.1, random_state=42)
         try:
+            iso_forest = IsolationForest(contamination=0.1, random_state=42)
             anomaly_labels = iso_forest.fit_predict(df[numeric_cols])
             anomalies["isolation_forest"] = {
                 "count": (anomaly_labels == -1).sum(),
@@ -423,22 +445,32 @@ def detect_anomalies(df, numeric_cols, method="iqr"):
 
 def analyze_categorical(df, cat_cols):
     """Analyze categorical variables comprehensively"""
+    if not cat_cols or df is None:
+        return {}
+    
     cat_analysis = {}
     for col in cat_cols:
-        value_counts = df[col].value_counts()
-        cat_analysis[col] = {
-            "unique": df[col].nunique(),
-            "mode": df[col].mode()[0] if len(df[col].mode()) > 0 else "N/A",
-            "missing": df[col].isnull().sum(),
-            "top_3": value_counts.head(3).to_dict(),
-            "cardinality": (df[col].nunique() / len(df)) * 100,
-            "is_imbalanced": value_counts.iloc[0] / value_counts.sum() > 0.8
-        }
+        try:
+            value_counts = df[col].value_counts()
+            cat_analysis[col] = {
+                "unique": df[col].nunique(),
+                "mode": df[col].mode()[0] if len(df[col].mode()) > 0 else "N/A",
+                "missing": df[col].isnull().sum(),
+                "top_3": value_counts.head(3).to_dict(),
+                "cardinality": (df[col].nunique() / len(df)) * 100 if len(df) > 0 else 0,
+                "is_imbalanced": value_counts.iloc[0] / value_counts.sum() > 0.8 if len(value_counts) > 0 else False
+            }
+        except:
+            pass
+    
     return cat_analysis
 
 
 def calculate_vif(df, numeric_cols):
     """Calculate Variance Inflation Factor for multicollinearity"""
+    if not numeric_cols or len(numeric_cols) < 2 or df is None:
+        return None
+    
     try:
         vif_data = pd.DataFrame()
         vif_data["Feature"] = numeric_cols
@@ -450,6 +482,9 @@ def calculate_vif(df, numeric_cols):
 
 def chi_square_test(df, cat_col1, cat_col2):
     """Perform chi-square test between two categorical variables"""
+    if df is None or cat_col1 not in df.columns or cat_col2 not in df.columns:
+        return None
+    
     try:
         contingency = pd.crosstab(df[cat_col1], df[cat_col2])
         chi2, p_val, dof, expected = chi2_contingency(contingency)
@@ -459,19 +494,27 @@ def chi_square_test(df, cat_col1, cat_col2):
 
 
 def prepare_data_for_ml(df, numeric_cols, categorical_cols):
-    """
-    Prepare data for ML using ColumnTransformer
-    Handles both numeric and categorical columns
-    """
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('num', StandardScaler(), numeric_cols),
-            ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_cols)
-        ],
-        remainder='passthrough'
-    )
+    """Prepare data for ML using ColumnTransformer"""
+    if not numeric_cols or df is None:
+        return None, None
     
     try:
+        if categorical_cols:
+            preprocessor = ColumnTransformer(
+                transformers=[
+                    ('num', StandardScaler(), numeric_cols),
+                    ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_cols)
+                ],
+                remainder='passthrough'
+            )
+        else:
+            preprocessor = ColumnTransformer(
+                transformers=[
+                    ('num', StandardScaler(), numeric_cols)
+                ],
+                remainder='passthrough'
+            )
+        
         transformed_data = preprocessor.fit_transform(df[numeric_cols + categorical_cols])
         return transformed_data, preprocessor
     except Exception as e:
@@ -483,7 +526,7 @@ def plotly_to_bytes(fig):
     """Convert plotly figure to PNG bytes"""
     try:
         return fig.to_image(format="png", width=1000, height=600)
-    except Exception:
+    except:
         return None
 
 
@@ -511,10 +554,10 @@ def create_professional_pdf(df, title, insights, charts_bytes):
     
     # Insights
     if insights:
-        story.append(Paragraph("AI Insights & Analysis", styles['Heading2']))
-        for insight in insights[:5]:
+        story.append(Paragraph("Key Findings & Insights", styles['Heading2']))
+        for insight in insights[:8]:
             try:
-                story.append(Paragraph(f"• {str(insight)[:200]}", styles['Normal']))
+                story.append(Paragraph(f"• {str(insight)[:250]}", styles['Normal']))
             except:
                 pass
         story.append(Spacer(1, 20))
@@ -523,7 +566,8 @@ def create_professional_pdf(df, title, insights, charts_bytes):
     if df is not None and not df.empty:
         story.append(Paragraph("Data Overview (First 10 Rows)", styles['Heading2']))
         try:
-            data = [df.columns.tolist()[:5]] + df.head(10).values.tolist()[:5]
+            cols_to_show = df.columns.tolist()[:5]
+            data = [cols_to_show] + [list(df[cols_to_show].iloc[i]) for i in range(min(10, len(df)))]
             table = Table(data)
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f77b4')),
@@ -605,13 +649,10 @@ with tab1:
             'Units_Sold': np.random.randint(1, 100, 100)
         })
         st.session_state.df = df
-        
-        # Clean missing values
-        st.session_state.df_cleaned = handle_missing_values(
-            df, numeric_strategy, categorical_strategy
-        )
+        st.session_state.df_cleaned = handle_missing_values(df, numeric_strategy, categorical_strategy)
         st.session_state.df_stats = calculate_advanced_statistics(st.session_state.df_cleaned)
         st.success("✅ Sample data loaded!")
+    
     elif uploaded:
         try:
             if uploaded.name.endswith('.csv'):
@@ -622,41 +663,32 @@ with tab1:
                 df = pd.read_excel(uploaded)
             
             st.session_state.df = df
-            
-            # Clean missing values
-            st.session_state.df_cleaned = handle_missing_values(
-                df, numeric_strategy, categorical_strategy
-            )
+            st.session_state.df_cleaned = handle_missing_values(df, numeric_strategy, categorical_strategy)
             st.session_state.df_stats = calculate_advanced_statistics(st.session_state.df_cleaned)
             st.success(f"✅ Loaded {df.shape[0]:,} rows × {df.shape[1]} columns")
         except Exception as e:
             st.error(f"❌ Error: {e}")
     
-    # Display data statistics
-    if st.session_state.df is not None:
+    # Display data statistics ONLY if data is loaded
+    if st.session_state.df is not None and not st.session_state.df.empty:
         df = st.session_state.df
-        df_clean = st.session_state.df_cleaned
-        df_stats = st.session_state.df_stats
-        if df_stats is None:
-            # Ensure statistics are available even if session didn't compute them yet
-            df_stats = calculate_advanced_statistics(df_clean)
-            st.session_state.df_stats = df_stats
+        stats_data = st.session_state.df_stats
         
         st.markdown("### 📈 Dataset Statistics")
         
         # Metrics row
         m1, m2, m3, m4, m5 = st.columns(5)
         with m1:
-            st.metric("📊 Rows", f"{df_stats['shape'][0]:,}")
+            st.metric("📊 Rows", f"{stats_data['shape'][0]:,}")
         with m2:
-            st.metric("📋 Columns", df_stats['shape'][1])
+            st.metric("📋 Columns", stats_data['shape'][1])
         with m3:
-            st.metric("💾 Size (MB)", f"{df_stats['memory']:.2f}")
+            st.metric("💾 Size (MB)", f"{stats_data['memory']:.2f}")
         with m4:
-            missing_count = sum(1 for v in df_stats['missing_pct'].values() if v > 0)
+            missing_count = sum(1 for v in stats_data['missing_pct'].values() if v > 0)
             st.metric("❌ Missing Cols", missing_count)
         with m5:
-            st.metric("🔄 Duplicates", df_stats['duplicates'])
+            st.metric("🔄 Duplicates", stats_data['duplicates'])
         
         # Data Type Summary
         st.markdown("### 📊 Data Types Summary")
@@ -665,18 +697,18 @@ with tab1:
         with col_type1:
             st.markdown(f"""
             <div class="numeric-box">
-                <strong>🔢 Numeric Columns: {len(df_stats['numeric_cols'])}</strong><br>
-                {', '.join(df_stats['numeric_cols'][:5]) if df_stats['numeric_cols'] else 'None'}
-                {f'<br><small>+{len(df_stats["numeric_cols"])-5} more</small>' if len(df_stats['numeric_cols']) > 5 else ''}
+                <strong>🔢 Numeric Columns: {len(stats_data['numeric_cols'])}</strong><br>
+                {', '.join(stats_data['numeric_cols'][:5]) if stats_data['numeric_cols'] else 'None'}
+                {f'<br><small>+{len(stats_data["numeric_cols"])-5} more</small>' if len(stats_data['numeric_cols']) > 5 else ''}
             </div>
             """, unsafe_allow_html=True)
         
         with col_type2:
             st.markdown(f"""
             <div class="categorical-box">
-                <strong>🏷️ Categorical Columns: {len(df_stats['categorical_cols'])}</strong><br>
-                {', '.join(df_stats['categorical_cols'][:5]) if df_stats['categorical_cols'] else 'None'}
-                {f'<br><small>+{len(df_stats["categorical_cols"])-5} more</small>' if len(df_stats['categorical_cols']) > 5 else ''}
+                <strong>🏷️ Categorical Columns: {len(stats_data['categorical_cols'])}</strong><br>
+                {', '.join(stats_data['categorical_cols'][:5]) if stats_data['categorical_cols'] else 'None'}
+                {f'<br><small>+{len(stats_data["categorical_cols"])-5} more</small>' if len(stats_data['categorical_cols']) > 5 else ''}
             </div>
             """, unsafe_allow_html=True)
         
@@ -686,10 +718,10 @@ with tab1:
         # Data Quality Report
         st.markdown("### 🔍 Data Quality Report")
         
-        if df_stats['missing_pct']:
+        if stats_data['missing_pct']:
             missing_df = pd.DataFrame({
-                'Column': df_stats['missing_pct'].keys(),
-                'Missing %': df_stats['missing_pct'].values()
+                'Column': stats_data['missing_pct'].keys(),
+                'Missing %': stats_data['missing_pct'].values()
             }).sort_values('Missing %', ascending=False)
             
             missing_df = missing_df[missing_df['Missing %'] > 0]
@@ -714,14 +746,13 @@ with tab1:
 with tab2:
     st.header("📊 Interactive Dashboard")
     
-    if st.session_state.df is None:
+    if st.session_state.df is None or st.session_state.df.empty:
         st.info("👈 Upload data in the 'Upload & Explore' tab first")
     else:
         df = st.session_state.df_cleaned
         num_cols = df.select_dtypes(include='number').columns.tolist()
         cat_cols = df.select_dtypes(include='object').columns.tolist()
         
-        # Dashboard Controls
         st.markdown("### 🎛️ Dashboard Controls")
         
         analysis_type = st.radio("Select Analysis Type", ["Numeric Analysis", "Categorical Analysis", "Mixed Analysis"])
@@ -730,97 +761,61 @@ with tab2:
             col1, col2, col3 = st.columns(3)
             
             with col1:
-                chart_type = st.selectbox(
-                    "Chart Type",
-                    ["Distribution", "Scatter", "Box Plot", "Heatmap", "Time Series"]
-                )
+                chart_type = st.selectbox("Chart Type", ["Distribution", "Scatter", "Box Plot", "Heatmap"])
             with col2:
                 x_col = st.selectbox("X Axis", num_cols)
             with col3:
                 if len(num_cols) > 1:
-                    y_col = st.selectbox("Y Axis", num_cols[1:])
+                    y_col = st.selectbox("Y Axis", [c for c in num_cols if c != x_col])
                 else:
                     y_col = num_cols[0]
             
-            # Generate charts
             col_viz1, col_viz2 = st.columns(2)
             
             with col_viz1:
-                if chart_type == "Distribution":
-                    fig = px.histogram(
-                        df,
-                        x=x_col,
-                        nbins=30,
-                        title=f"{x_col} Distribution",
-                        color_discrete_sequence=['#667eea']
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                elif chart_type == "Box Plot":
-                    fig = px.box(
-                        df,
-                        y=x_col,
-                        title=f"{x_col} Box Plot",
-                        color_discrete_sequence=['#764ba2']
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                try:
+                    if chart_type == "Distribution":
+                        fig = px.histogram(df, x=x_col, nbins=30, title=f"{x_col} Distribution", color_discrete_sequence=['#667eea'])
+                        st.plotly_chart(fig, use_container_width=True)
+                    elif chart_type == "Box Plot":
+                        fig = px.box(df, y=x_col, title=f"{x_col} Box Plot", color_discrete_sequence=['#764ba2'])
+                        st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Chart error: {e}")
             
             with col_viz2:
-                if chart_type == "Scatter" and len(num_cols) > 1:
-                    if cat_cols:
-                        color_col = st.selectbox("Color by", cat_cols, key="scatter_color")
-                        fig = px.scatter(
-                            df,
-                            x=x_col,
-                            y=y_col,
-                            color=color_col,
-                            hover_data=df.columns[:5],
-                            title=f"{x_col} vs {y_col}",
-                        )
-                    else:
-                        fig = px.scatter(
-                            df,
-                            x=x_col,
-                            y=y_col,
-                            title=f"{x_col} vs {y_col}",
-                        )
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                elif chart_type == "Heatmap" and len(num_cols) > 1:
-                    fig = px.imshow(
-                        df[num_cols].corr(),
-                        text_auto=True,
-                        title="Correlation Heatmap",
-                        color_continuous_scale="Viridis"
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                try:
+                    if chart_type == "Scatter" and len(num_cols) > 1:
+                        fig = px.scatter(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col}")
+                        st.plotly_chart(fig, use_container_width=True)
+                    elif chart_type == "Heatmap" and len(num_cols) > 1:
+                        fig = px.imshow(df[num_cols].corr(), text_auto=True, title="Correlation Heatmap", color_continuous_scale="Viridis")
+                        st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Chart error: {e}")
         
         elif analysis_type == "Categorical Analysis" and cat_cols:
             col1, col2 = st.columns(2)
             
             with col1:
-                cat_chart_type = st.selectbox("Chart Type", ["Bar (Count)", "Pie Chart", "Value Counts", "Horizontal Bar"])
-            
+                cat_chart_type = st.selectbox("Chart Type", ["Bar (Count)", "Pie Chart", "Value Counts"])
             with col2:
                 cat_col_select = st.selectbox("Select Category", cat_cols)
             
             col_cat1, col_cat2 = st.columns(2)
             
             with col_cat1:
-                if cat_chart_type == "Bar (Count)":
-                    fig = px.bar(df[cat_col_select].value_counts().reset_index(), x=cat_col_select, y='count', title=f"{cat_col_select} - Count Distribution", color_discrete_sequence=['#ff7f0e'])
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                elif cat_chart_type == "Pie Chart":
-                    fig = px.pie(values=df[cat_col_select].value_counts().values, names=df[cat_col_select].value_counts().index, title=f"{cat_col_select} - Distribution")
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                elif cat_chart_type == "Horizontal Bar":
-                    fig = px.barh(df[cat_col_select].value_counts().reset_index(), y=cat_col_select, x='count', title=f"{cat_col_select} - Distribution", color_discrete_sequence=['#667eea'])
-                    st.plotly_chart(fig, use_container_width=True)
+                try:
+                    if cat_chart_type == "Bar (Count)":
+                        fig = px.bar(df[cat_col_select].value_counts().reset_index(), x=cat_col_select, y='count', title=f"{cat_col_select} Distribution")
+                        st.plotly_chart(fig, use_container_width=True)
+                    elif cat_chart_type == "Pie Chart":
+                        fig = px.pie(values=df[cat_col_select].value_counts().values, names=df[cat_col_select].value_counts().index, title=f"{cat_col_select} Distribution")
+                        st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Chart error: {e}")
             
             with col_cat2:
-                # Show value counts table
                 vc = df[cat_col_select].value_counts().reset_index()
                 vc.columns = [cat_col_select, 'Count']
                 st.dataframe(vc, use_container_width=True, hide_index=True)
@@ -833,25 +828,17 @@ with tab2:
             with col2:
                 cat_col = st.selectbox("Categorical Column", cat_cols)
             with col3:
-                agg_type = st.selectbox("Aggregation", ["Mean", "Sum", "Count", "Median", "Std", "Min", "Max"])
+                agg_type = st.selectbox("Aggregation", ["Mean", "Sum", "Count", "Median"])
             
-            agg_map = {"Mean": "mean", "Sum": "sum", "Count": "count", "Median": "median", "Std": "std", "Min": "min", "Max": "max"}
+            agg_map = {"Mean": "mean", "Sum": "sum", "Count": "count", "Median": "median"}
             
-            col_mixed1, col_mixed2 = st.columns(2)
-            
-            with col_mixed1:
+            try:
                 grouped_data = df.groupby(cat_col)[num_col].agg(agg_map[agg_type]).reset_index()
-                fig = px.bar(
-                    grouped_data,
-                    x=cat_col,
-                    y=num_col,
-                    title=f"{agg_type} of {num_col} by {cat_col}",
-                    color_discrete_sequence=['#2ca02c']
-                )
+                fig = px.bar(grouped_data, x=cat_col, y=num_col, title=f"{agg_type} of {num_col} by {cat_col}")
                 st.plotly_chart(fig, use_container_width=True)
-            
-            with col_mixed2:
                 st.dataframe(grouped_data, use_container_width=True, hide_index=True)
+            except Exception as e:
+                st.error(f"Error: {e}")
         
         # Summary Statistics
         st.markdown("### 📊 Summary Statistics")
@@ -865,14 +852,13 @@ with tab2:
 with tab3:
     st.header("🔍 Deep Statistical Analysis")
     
-    if st.session_state.df is None:
+    if st.session_state.df is None or st.session_state.df.empty:
         st.info("👈 Upload data first")
     else:
         df = st.session_state.df_cleaned
         num_cols = df.select_dtypes(include='number').columns.tolist()
         cat_cols = df.select_dtypes(include='object').columns.tolist()
         
-        # Tabs for different analyses
         analysis_tab1, analysis_tab2, analysis_tab3, analysis_tab4, analysis_tab5 = st.tabs([
             "🔢 Numeric Analysis",
             "🏷️ Categorical Analysis",
@@ -880,12 +866,10 @@ with tab3:
             "📈 Distributions",
             "⚠️ Data Quality"
         ])
-
-        # NUMERIC ANALYSIS
+        
         with analysis_tab1:
-            if num_cols:
+            if num_cols and enable_anomaly:
                 st.markdown("### 🚨 Anomaly Detection")
-                
                 anom_method = st.radio("Detection Method", ["IQR (Traditional)", "Isolation Forest (ML)"])
                 anomalies = detect_anomalies(df, num_cols, method="iqr" if anom_method == "IQR (Traditional)" else "isolation_forest")
                 
@@ -897,7 +881,7 @@ with tab3:
                             <div class="warning-box">
                                 <strong>{col}</strong><br>
                                 Outliers: {anom['count']} ({anom['percentage']:.2f}%)<br>
-                                {f"Normal Range: [{anom['bounds'][0]:.2f}, {anom['bounds'][1]:.2f}]" if 'bounds' in anom else ""}
+                                {f"Range: [{anom['bounds'][0]:.2f}, {anom['bounds'][1]:.2f}]" if 'bounds' in anom else ""}
                             </div>
                             """, unsafe_allow_html=True)
                     else:
@@ -906,7 +890,7 @@ with tab3:
                             <div class="warning-box">
                                 <strong>{col}</strong><br>
                                 Outliers: {anom['count']} ({anom['percentage']:.2f}%)<br>
-                                {f"Normal Range: [{anom['bounds'][0]:.2f}, {anom['bounds'][1]:.2f}]" if 'bounds' in anom else ""}
+                                {f"Range: [{anom['bounds'][0]:.2f}, {anom['bounds'][1]:.2f}]" if 'bounds' in anom else ""}
                             </div>
                             """, unsafe_allow_html=True)
                 
@@ -915,114 +899,147 @@ with tab3:
                     vif_result = calculate_vif(df, num_cols)
                     if vif_result is not None:
                         st.dataframe(vif_result, use_container_width=True, hide_index=True)
-                        st.info("**VIF Interpretation:** VIF > 5-10 indicates multicollinearity issues")
             else:
-                st.info("No numeric columns available")
+                st.info("No numeric columns or anomaly detection disabled")
         
-        # CATEGORICAL ANALYSIS
         with analysis_tab2:
             if cat_cols:
                 st.markdown("### 📊 Categorical Variables Analysis")
                 cat_analysis = analyze_categorical(df, cat_cols)
                 
                 for col, analysis in cat_analysis.items():
-                    with st.expander(f"📋 {col} - {analysis['unique']} unique values"):
+                    with st.expander(f"📋 {col}"):
                         col1, col2, col3, col4 = st.columns(4)
                         with col1:
-                            st.metric("Unique Values", analysis['unique'])
+                            st.metric("Unique", analysis['unique'])
                         with col2:
                             st.metric("Missing", analysis['missing'])
                         with col3:
                             st.metric("Cardinality %", f"{analysis['cardinality']:.2f}%")
                         with col4:
                             st.metric("Imbalanced", "Yes" if analysis['is_imbalanced'] else "No")
-                        
-                        st.markdown("**Top 3 Values:**")
-                        for val, count in analysis['top_3'].items():
-                            st.write(f"- {val}: {count}")
             else:
-                st.info("No categorical columns available")
+                st.info("No categorical columns")
         
-        # RELATIONSHIPS
         with analysis_tab3:
             if len(num_cols) > 1:
-                st.markdown("### 🔗 Correlation Analysis")
-                corr_matrix = df[num_cols].corr()
-                fig = px.imshow(
-                    corr_matrix,
-                    text_auto=True,
-                    title="Pearson Correlation Matrix",
-                    color_continuous_scale="RdBu",
-                    zmin=-1,
-                    zmax=1
-                )
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Find strong correlations
-                st.markdown("**Strong Correlations (>0.7):**")
-                strong_corr = []
-                for i in range(len(corr_matrix.columns)):
-                    for j in range(i+1, len(corr_matrix.columns)):
-                        if abs(corr_matrix.iloc[i, j]) > 0.7:
-                            strong_corr.append((
-                                corr_matrix.columns[i],
-                                corr_matrix.columns[j],
-                                corr_matrix.iloc[i, j]
-                            ))
-                if strong_corr:
-                    for col1, col2, corr in strong_corr:
-                        st.markdown(f"- **{col1}** ↔ **{col2}**: {corr:.3f}")
-                else:
-                    st.info("No strong correlations found (>0.7)")
+                try:
+                    corr_matrix = df[num_cols].corr()
+                    fig = px.imshow(corr_matrix, text_auto=True, title="Correlation Matrix", color_continuous_scale="RdBu", zmin=-1, zmax=1)
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Error: {e}")
             else:
-                st.info("Need at least 2 numeric columns for correlation analysis")
+                st.info("Need at least 2 numeric columns")
         
-        # DISTRIBUTIONS
         with analysis_tab4:
             if num_cols:
-                st.markdown("### 📈 Distribution Analysis")
-                for col in num_cols[:3]:  # Limit to first 3 for performance
-                    fig = px.histogram(df, x=col, nbins=30, title=f"{col} - Distribution (Skewness: {stats.skew(df[col]):.2f})", color_discrete_sequence=['#667eea'])
-                    st.plotly_chart(fig, use_container_width=True)
+                for col in num_cols[:3]:
+                    try:
+                        fig = px.histogram(df, x=col, nbins=30, title=f"{col} Distribution")
+                        st.plotly_chart(fig, use_container_width=True)
+                    except:
+                        pass
             else:
-                st.info("No numeric columns available")
+                st.info("No numeric columns")
         
         with analysis_tab5:
-            st.markdown("### ⚠️ Data Quality Assessment")
-            
-            quality_metrics = {
-                "Completeness": (1 - df.isnull().sum().sum() / (df.shape[0] * df.shape[1])) * 100,
-                "Uniqueness": (1 - df.duplicated().sum() / len(df)) * 100,
-                "Numeric Columns": len(num_cols),
-                "Categorical Columns": len(cat_cols)
-            }
-            
+            st.markdown("### ⚠️ Data Quality")
             col_q1, col_q2, col_q3, col_q4 = st.columns(4)
             with col_q1:
-                st.metric("Completeness", f"{quality_metrics['Completeness']:.2f}%")
+                completeness = (1 - df.isnull().sum().sum() / (df.shape[0] * df.shape[1])) * 100
+                st.metric("Completeness", f"{completeness:.2f}%")
             with col_q2:
-                st.metric("Uniqueness", f"{quality_metrics['Uniqueness']:.2f}%")
+                uniqueness = (1 - df.duplicated().sum() / len(df)) * 100
+                st.metric("Uniqueness", f"{uniqueness:.2f}%")
             with col_q3:
-                st.metric("Numeric Cols", quality_metrics['Numeric Columns'])
+                st.metric("Numeric", len(num_cols))
             with col_q4:
-                st.metric("Categorical Cols", quality_metrics['Categorical Columns'])
+                st.metric("Categorical", len(cat_cols))
 
 
 # ================================================
-# TAB 4: AI CHAT
+# TAB 4: STATISTICAL TESTS
 # ================================================
 
 with tab4:
+    st.header("📊 Statistical Tests")
+    
+    if st.session_state.df is None or st.session_state.df.empty:
+        st.info("👈 Upload data first")
+    else:
+        df = st.session_state.df_cleaned
+        num_cols = df.select_dtypes(include='number').columns.tolist()
+        cat_cols = df.select_dtypes(include='object').columns.tolist()
+        
+        test_type = st.radio("Test Type", ["Normality (Shapiro-Wilk)", "Correlation", "T-Test"])
+        
+        if test_type == "Normality (Shapiro-Wilk)" and num_cols:
+            col_select = st.selectbox("Column", num_cols)
+            try:
+                stat, p_val = stats.shapiro(df[col_select].dropna())
+                st.metric("P-Value", f"{p_val:.6f}")
+                if p_val > 0.05:
+                    st.success("✅ Normal distribution")
+                else:
+                    st.warning("⚠️ Not normally distributed")
+            except Exception as e:
+                st.error(f"Error: {e}")
+        
+        elif test_type == "Correlation" and len(num_cols) >= 2:
+            col1, col2 = st.columns(2)
+            with col1:
+                col_a = st.selectbox("Column 1", num_cols)
+            with col2:
+                col_b = st.selectbox("Column 2", [c for c in num_cols if c != col_a])
+            
+            try:
+                corr, p_val = stats.pearsonr(df[col_a].dropna(), df[col_b].dropna())
+                st.metric("Correlation", f"{corr:.4f}")
+                st.metric("P-Value", f"{p_val:.6f}")
+            except Exception as e:
+                st.error(f"Error: {e}")
+        
+        elif test_type == "T-Test" and num_cols and cat_cols:
+            col_num = st.selectbox("Numeric", num_cols)
+            col_cat = st.selectbox("Category", cat_cols)
+            groups = df[col_cat].unique()
+            if len(groups) >= 2:
+                g1, g2 = st.columns(2)
+                with g1:
+                    gr1 = st.selectbox("Group 1", groups)
+                with g2:
+                    gr2 = st.selectbox("Group 2", [x for x in groups if x != gr1])
+                
+                try:
+                    g1_data = df[df[col_cat] == gr1][col_num].dropna()
+                    g2_data = df[df[col_cat] == gr2][col_num].dropna()
+                    t_stat, p_val = stats.ttest_ind(g1_data, g2_data)
+                    st.metric("T-Stat", f"{t_stat:.4f}")
+                    st.metric("P-Value", f"{p_val:.6f}")
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+
+# ================================================
+# TAB 5: AI CHAT
+# ================================================
+
+with tab5:
     st.header("💬 Chat with Your Data")
     
-    if st.session_state.df is None:
-        st.info("👈 Upload data in the 'Upload & Explore' tab first")
+    if st.session_state.df is None or st.session_state.df.empty:
+        st.info("👈 Upload data first")
     elif not api_key:
         st.warning("⚠️ Enter OpenRouter API key in sidebar")
     else:
         df = st.session_state.df_cleaned
         
-        st.info(f"📊 Data Shape: {df.shape[0]} rows × {df.shape[1]} columns | Model: {model_display}")
+        st.markdown("""
+        <div class="pro-feature">
+        🤖 Professional Data Analyst AI
+        </div>
+        """, unsafe_allow_html=True)
         
         # Chat history
         for msg in st.session_state.messages[-10:]:
@@ -1030,7 +1047,7 @@ with tab4:
                 st.markdown(msg["content"])
         
         # Chat input
-        if prompt := st.chat_input("Ask anything about your data..."):
+        if prompt := st.chat_input("Ask about your data..."):
             st.session_state.messages.append({"role": "user", "content": prompt})
             
             with st.chat_message("user"):
@@ -1044,25 +1061,18 @@ with tab4:
                     num_cols = df.select_dtypes(include='number').columns.tolist()
                     cat_cols = df.select_dtypes(include='object').columns.tolist()
                     
-                    full_prompt = f"""You are an expert data analyst specializing in both numeric and categorical data. Analyze this data and answer the question.
+                    full_prompt = f"""{SYSTEM_PROMPT_DATA_ANALYST}
 
-Data (CSV - First 50 rows):
+DATA SAMPLE:
 {ctx}
 
-Data Metadata:
-- Total Rows: {len(df)}, Total Columns: {len(df.columns)}
-- Numeric Columns ({len(num_cols)}): {', '.join(num_cols)}
-- Categorical Columns ({len(cat_cols)}): {', '.join(cat_cols)}
-- Missing Values: {df.isnull().sum().sum()}
-- Duplicates: {df.duplicated().sum()}
+METADATA:
+- Rows: {len(df)}, Columns: {len(df.columns)}
+- Numeric: {', '.join(num_cols) if num_cols else 'None'}
+- Categorical: {', '.join(cat_cols) if cat_cols else 'None'}
+- Missing: {df.isnull().sum().sum()}
 
-Question: {prompt}
-
-Provide:
-1. Direct answer with specific insights
-2. Key patterns or trends
-3. Relevant code (if needed, wrap in triple backticks python)
-4. Recommendations based on the data"""
+QUESTION: {prompt}"""
                     
                     response = client.chat.completions.create(
                         model=model_id,
@@ -1079,275 +1089,140 @@ Provide:
                     
                     ph.markdown(answer)
                     st.session_state.messages.append({"role": "assistant", "content": answer})
-                    st.session_state.insights.append(answer[:200])
                 except Exception as e:
                     st.error(f"Error: {str(e)[:100]}")
 
 
 # ================================================
-# TAB 5: EDIT DATA
-# ================================================
-
-with tab5:
-    st.header("✏️ Data Editor & Transformation")
-    
-    if st.session_state.df is None:
-        st.info("👈 Upload data first")
-    else:
-        col_edit1, col_edit2 = st.columns(2)
-        
-        with col_edit1:
-            edit_mode = st.radio("Mode", ["Edit Data", "Create New Column", "Filter Data"])
-        
-        if edit_mode == "Edit Data":
-            edited_df = st.data_editor(
-                st.session_state.df_cleaned,
-                num_rows="dynamic",
-                use_container_width=True
-            )
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("💾 Save Changes"):
-                    st.session_state.df = edited_df
-                    st.session_state.df_cleaned = handle_missing_values(
-                        edited_df, numeric_strategy, categorical_strategy
-                    )
-                    st.success("✅ Changes saved!")
-            with col2:
-                if st.button("🔄 Revert"):
-                    st.rerun()
-        
-        elif edit_mode == "Create New Column":
-            df = st.session_state.df_cleaned
-            col_name = st.text_input("New Column Name")
-            
-            col_type = st.radio("Column Type", ["Formula (Math)", "Copy from Existing", "Categorical"])
-            
-            if col_type == "Formula (Math)":
-                num_cols = df.select_dtypes(include='number').columns.tolist()
-                formula = st.text_input("Enter formula (e.g., df['col1'] * 2 + df['col2'])")
-                
-                if st.button("Create"):
-                    try:
-                        st.session_state.df_cleaned[col_name] = eval(formula)
-                        st.success(f"✅ Column '{col_name}' created!")
-                    except Exception as e:
-                        st.error(f"Error: {e}")
-        
-        elif edit_mode == "Filter Data":
-            df = st.session_state.df_cleaned
-            num_cols = df.select_dtypes(include='number').columns.tolist()
-            cat_cols = df.select_dtypes(include='object').columns.tolist()
-            
-            filter_col = st.selectbox("Filter by", num_cols + cat_cols)
-            
-            if filter_col in num_cols:
-                min_val, max_val = st.slider("Range", float(df[filter_col].min()), float(df[filter_col].max()), (float(df[filter_col].min()), float(df[filter_col].max())))
-                filtered_df = df[(df[filter_col] >= min_val) & (df[filter_col] <= max_val)]
-            else:
-                values = st.multiselect("Select values", df[filter_col].unique())
-                filtered_df = df[df[filter_col].isin(values)]
-            
-            st.dataframe(filtered_df, use_container_width=True)
-            st.metric("Rows shown", len(filtered_df))
-
-
-# ================================================
-# TAB 6: ADVANCED ANALYTICS
+# TAB 6: EDIT DATA
 # ================================================
 
 with tab6:
-    st.header("🧠 Advanced Analytics with ML")
+    st.header("✏️ Data Editor")
     
-    if st.session_state.df is None:
+    if st.session_state.df is None or st.session_state.df.empty:
         st.info("👈 Upload data first")
     else:
-        df = st.session_state.df_cleaned
-        num_cols = df.select_dtypes(include='number').columns.tolist()
-        cat_cols = df.select_dtypes(include='object').columns.tolist()
-        
-        st.markdown("### 🔧 Advanced ML Techniques")
-        
-        # Can use numeric columns, or numeric + categorical with preprocessing
-        if len(num_cols) >= 2:
-            
-            # PCA Analysis
-            if st.checkbox("🔵 PCA (Dimensionality Reduction) - Numeric Only"):
-                try:
-                    if len(num_cols) > 2:
-                        scaler = StandardScaler()
-                        scaled_data = scaler.fit_transform(df[num_cols])
-                        pca = PCA(n_components=2)
-                        pca_data = pca.fit_transform(scaled_data)
-                        
-                        fig = go.Figure()
-                        fig.add_trace(go.Scatter(
-                            x=pca_data[:, 0],
-                            y=pca_data[:, 1],
-                            mode='markers',
-                            marker=dict(size=8, color=pca_data[:, 0], colorscale='Viridis'),
-                        ))
-                        fig.update_layout(
-                            title=f"PCA (Explains {pca.explained_variance_ratio_.sum()*100:.1f}% of variance)",
-                            xaxis_title=f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)",
-                            yaxis_title=f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)",
-                            height=600
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.info("Need at least 3 numeric columns for meaningful PCA")
-                except Exception as e:
-                    st.error(f"PCA Error: {str(e)[:50]}")
-            
-            # K-Means Clustering (Numeric + Categorical)
-                    try:
-                        n_clusters = st.slider("Number of Clusters", 2, 10, 3)
-
-                        # Prepare data (both numeric and categorical)
-                        if cat_cols:
-                            transformed_data, preprocessor = prepare_data_for_ml(df, num_cols, cat_cols)
-                            if transformed_data is not None:
-                                kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-                                clusters = kmeans.fit_predict(transformed_data)
-                            else:
-                                st.error("Could not prepare data for clustering")
-                                clusters = None
-                        else:
-                            scaler = StandardScaler()
-                            scaled_data = scaler.fit_transform(df[num_cols])
-                            kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-                            clusters = kmeans.fit_predict(scaled_data)
-
-                        if clusters is not None:
-                            # Ensure there are at least two numeric columns for a scatter
-                            x_vals = df[num_cols[0]]
-                            y_vals = df[num_cols[1]] if len(num_cols) > 1 else pd.Series([0]*len(df))
-
-                            fig = px.scatter(
-                                x=x_vals,
-                                y=y_vals,
-                                color=clusters,
-                                title=f"K-Means Clustering (K={n_clusters})",
-                                labels={'x': num_cols[0], 'y': num_cols[1] if len(num_cols) > 1 else '', 'color': 'Cluster'},
-                                color_discrete_sequence=px.colors.qualitative.Set1
-                            )
-                            st.plotly_chart(fig, use_container_width=True)
-
-                            # Cluster distribution
-                            cluster_dist = pd.DataFrame({'Cluster': clusters, 'Count': 1}).groupby('Cluster').count()
-                            st.bar_chart(cluster_dist)
-                    except Exception as e:
-                        st.error(f"Clustering Error: {str(e)[:100]}")
-        else:
-            st.info("Need at least 2 numeric columns for advanced analytics")
-
-
-# ================================================
-# TAB 7: REPORTS
-# ================================================
-
-with tab7:
-    st.header("🎯 Pattern Mining & Association Rules")
-    
-    if st.session_state.df is None:
-        st.info("👈 Upload data first")
-    else:
-        df = st.session_state.df_cleaned
-        num_cols = df.select_dtypes(include='number').columns.tolist()
-        cat_cols = df.select_dtypes(include='object').columns.tolist()
-        
-        pattern_type = st.radio("Pattern Analysis", [
-            "Frequency Analysis",
-            "Correlation Patterns",
-            "Distribution Patterns",
-            "Top N Analysis"
-        ])
-        
-        if pattern_type == "Frequency Analysis" and cat_cols:
-            col_select = st.selectbox("Select Category", cat_cols)
-            
-            freq = df[col_select].value_counts()
-            fig = px.bar(
-                x=freq.index,
-                y=freq.values,
-                title=f"Frequency Distribution: {col_select}",
-                labels={'x': col_select, 'y': 'Frequency'},
-                color_discrete_sequence=['#667eea']
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        elif pattern_type == "Correlation Patterns" and len(num_cols) > 1:
-            corr_matrix = df[num_cols].corr()
-            
-            pairs = []
-            for i in range(len(corr_matrix.columns)):
-                for j in range(i+1, len(corr_matrix.columns)):
-                    if abs(corr_matrix.iloc[i, j]) > 0.5:
-                        pairs.append({
-                            'Variable 1': corr_matrix.columns[i],
-                            'Variable 2': corr_matrix.columns[j],
-                            'Correlation': corr_matrix.iloc[i, j]
-                        })
-            
-            if pairs:
-                pairs_df = pd.DataFrame(pairs).sort_values('Correlation', key=abs, ascending=False)
-                st.dataframe(pairs_df, use_container_width=True, hide_index=True)
-        
-        elif pattern_type == "Distribution Patterns" and num_cols:
-            col_select = st.selectbox("Select Numeric Column", num_cols)
-            
-            skewness = stats.skew(df[col_select])
-            kurtosis = stats.kurtosis(df[col_select])
-            
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Mean", f"{df[col_select].mean():.2f}")
-            with col2:
-                st.metric("Median", f"{df[col_select].median():.2f}")
-            with col3:
-                st.metric("Skewness", f"{skewness:.2f}")
-            with col4:
-                st.metric("Kurtosis", f"{kurtosis:.2f}")
-        
-        elif pattern_type == "Top N Analysis":
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                analysis_col = st.selectbox("Column", num_cols + cat_cols)
-            with col2:
-                n = st.slider("Top N", 3, 20, 10)
-            
-            if analysis_col in num_cols:
-                top_n = df.nlargest(n, analysis_col)[[analysis_col]]
-                st.bar_chart(top_n)
-            else:
-                top_n = df[analysis_col].value_counts().head(n)
-                st.bar_chart(top_n)
-
-
-
-with tab9:
-    st.header("📄 Professional Report Generation")
-    
-    if st.session_state.df is None:
-        st.info("👈 Upload data first")
-    else:
-        df = st.session_state.df_cleaned
-        
-        st.markdown("### 📋 Report Configuration")
+        edited_df = st.data_editor(st.session_state.df_cleaned, num_rows="dynamic", use_container_width=True)
         
         col1, col2 = st.columns(2)
         with col1:
-            report_title = st.text_input("Report Title", "Data Analysis Report")
+            if st.button("💾 Save"):
+                st.session_state.df_cleaned = edited_df
+                st.success("✅ Saved!")
         with col2:
-            report_format = st.selectbox("Format", ["PDF"])
+            if st.button("🔄 Revert"):
+                st.rerun()
+
+
+# ================================================
+# TAB 7: ADVANCED ANALYTICS
+# ================================================
+
+with tab7:
+    st.header("🧠 Advanced Analytics")
+    
+    if st.session_state.df is None or st.session_state.df.empty:
+        st.info("👈 Upload data first")
+    else:
+        df = st.session_state.df_cleaned
+        num_cols = df.select_dtypes(include='number').columns.tolist()
+        cat_cols = df.select_dtypes(include='object').columns.tolist()
         
-        if st.button("🚀 Generate Report", type="primary"):
-            with st.spinner("Generating comprehensive report..."):
+        if len(num_cols) >= 2:
+            if st.checkbox("🔵 PCA"):
+                try:
+                    scaler = StandardScaler()
+                    scaled = scaler.fit_transform(df[num_cols])
+                    pca = PCA(n_components=2)
+                    pca_data = pca.fit_transform(scaled)
+                    
+                    fig = go.Figure(data=go.Scatter(x=pca_data[:, 0], y=pca_data[:, 1], mode='markers', marker=dict(color=pca_data[:, 0])))
+                    fig.update_layout(title="PCA Analysis", height=600)
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Error: {e}")
+            
+            if st.checkbox("🎯 K-Means"):
+                try:
+                    n_clusters = st.slider("Clusters", 2, 10, 3)
+                    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+                    clusters = kmeans.fit_predict(scaled)
+                    
+                    fig = px.scatter(x=df[num_cols[0]], y=df[num_cols[1]] if len(num_cols) > 1 else None, color=clusters)
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+
+# ================================================
+# TAB 8: PATTERN MINING
+# ================================================
+
+with tab8:
+    st.header("🎯 Pattern Mining")
+    
+    if st.session_state.df is None or st.session_state.df.empty:
+        st.info("👈 Upload data first")
+    else:
+        df = st.session_state.df_cleaned
+        num_cols = df.select_dtypes(include='number').columns.tolist()
+        cat_cols = df.select_dtypes(include='object').columns.tolist()
+        
+        pattern_type = st.radio("Analysis", ["Frequency", "Correlation Patterns", "Top N"])
+        
+        if pattern_type == "Frequency" and cat_cols:
+            col_select = st.selectbox("Category", cat_cols)
+            try:
+                freq = df[col_select].value_counts()
+                fig = px.bar(x=freq.index, y=freq.values, title=f"{col_select} Frequency")
+                st.plotly_chart(fig, use_container_width=True)
+            except:
+                pass
+        
+        elif pattern_type == "Correlation Patterns" and len(num_cols) > 1:
+            try:
+                corr = df[num_cols].corr()
+                pairs = []
+                for i in range(len(corr.columns)):
+                    for j in range(i+1, len(corr.columns)):
+                        if abs(corr.iloc[i, j]) > 0.5:
+                            pairs.append({'Var1': corr.columns[i], 'Var2': corr.columns[j], 'Corr': corr.iloc[i, j]})
+                if pairs:
+                    st.dataframe(pd.DataFrame(pairs), use_container_width=True)
+            except:
+                pass
+        
+        elif pattern_type == "Top N":
+            col = st.selectbox("Column", num_cols + cat_cols)
+            n = st.slider("Top N", 3, 20, 10)
+            try:
+                if col in num_cols:
+                    st.bar_chart(df.nlargest(n, col)[[col]])
+                else:
+                    st.bar_chart(df[col].value_counts().head(n))
+            except:
+                pass
+
+
+# ================================================
+# TAB 9: REPORTS
+# ================================================
+
+with tab9:
+    st.header("📄 Report Generation")
+    
+    if st.session_state.df is None or st.session_state.df.empty:
+        st.info("👈 Upload data first")
+    else:
+        df = st.session_state.df_cleaned
+        
+        report_title = st.text_input("Report Title", "Analysis Report")
+        
+        if st.button("🚀 Generate Report"):
+            with st.spinner("Generating..."):
                 charts = []
                 num_cols = df.select_dtypes(include='number').columns.tolist()
-                cat_cols = df.select_dtypes(include='object').columns.tolist()
                 
                 try:
                     if len(num_cols) >= 1:
@@ -1355,46 +1230,27 @@ with tab9:
                         chart_bytes = plotly_to_bytes(fig)
                         if chart_bytes:
                             charts.append(chart_bytes)
-                    if len(num_cols) >= 2:
-                        fig = px.scatter(df, x=num_cols[0], y=num_cols[1], title="Numeric Relationships")
-                        chart_bytes = plotly_to_bytes(fig)
-                        if chart_bytes:
-                            charts.append(chart_bytes)
-                    if len(num_cols) > 1:
-                        fig = px.imshow(df[num_cols].corr(), title="Correlation Heatmap")
-                        chart_bytes = plotly_to_bytes(fig)
-                        if chart_bytes:
-                            charts.append(chart_bytes)
-                    if cat_cols:
-                        fig = px.bar(df[cat_cols[0]].value_counts().reset_index(), x=cat_cols[0], y='count', title=f"{cat_cols[0]} Distribution")
-                        chart_bytes = plotly_to_bytes(fig)
-                        if chart_bytes:
-                            charts.append(chart_bytes)
-                except Exception as e:
-                    st.warning(f"Chart generation issue: {str(e)[:50]}")
+                except:
+                    pass
                 
                 insights = [
-                    f"📊 Dataset: {df.shape[0]:,} records × {df.shape[1]} features",
-                    f"🔢 Numeric columns: {len(num_cols)}",
-                    f"🏷️ Categorical columns: {len(cat_cols)}",
-                    f"🔍 Missing values: {df.isnull().sum().sum()} ({df.isnull().sum().sum()/df.size*100:.2f}%)",
-                    f"🔄 Duplicate records: {df.duplicated().sum()}",
-                    f"💾 Data size: {df.memory_usage(deep=True).sum()/1024**2:.2f} MB",
-                ] + st.session_state.insights[:4]
+                    f"📊 {df.shape[0]:,} rows × {df.shape[1]} columns",
+                    f"🔍 Missing: {df.isnull().sum().sum()}",
+                    f"🔄 Duplicates: {df.duplicated().sum()}",
+                ]
                 
                 try:
                     pdf = create_professional_pdf(df, report_title, insights, charts)
-                    
                     st.download_button(
-                        label="📥 Download PDF Report",
+                        "📥 Download PDF",
                         data=pdf,
-                        file_name=f"{report_title.replace(' ', '_')}.pdf",
+                        file_name=f"{report_title}.pdf",
                         mime="application/pdf",
                         use_container_width=True
                     )
-                    st.success("✅ Report generated successfully!")
+                    st.success("✅ Done!")
                 except Exception as e:
-                    st.error(f"PDF generation error: {str(e)[:100]}")
+                    st.error(f"Error: {e}")
 
 
 # ================================================
@@ -1405,7 +1261,6 @@ st.markdown("---")
 st.markdown("""
 <div style="text-align: center; opacity: 0.7;">
     <p>📊 Data Analyst AI Pro v2.3 | Enterprise-Grade Analytics</p>
-    <p style="font-size: 12px;">✨ Professional Grade • Production Ready • Free Forever • All Models at $0</p>
-    <p style="font-size: 11px;">Features: PCA, K-Means, DBSCAN, VIF, Chi-Square, T-Tests, Shapiro-Wilk, Correlation Analysis, Anomaly Detection, Pattern Mining</p>
+    <p style="font-size: 12px;">✨ Production Ready • Free Forever • All Models at $0</p>
 </div>
 """, unsafe_allow_html=True)
