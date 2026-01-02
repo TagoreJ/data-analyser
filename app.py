@@ -868,13 +868,15 @@ with tab3:
         num_cols = df.select_dtypes(include='number').columns.tolist()
         cat_cols = df.select_dtypes(include='object').columns.tolist()
         
-        # Tabs for different analyses    analysis_tab1, analysis_tab2, analysis_tab3, analysis_tab4, analysis_tab5 = st.tabs([
-        "🔢 Numeric Analysis",
-        "🏷️ Categorical Analysis",
-        "🔗 Relationships",
-        "📈 Distributions",
-        "⚠️ Data Quality"
-        
+        # Tabs for different analyses
+        analysis_tab1, analysis_tab2, analysis_tab3, analysis_tab4, analysis_tab5 = st.tabs([
+            "🔢 Numeric Analysis",
+            "🏷️ Categorical Analysis",
+            "🔗 Relationships",
+            "📈 Distributions",
+            "⚠️ Data Quality"
+        ])
+
         # NUMERIC ANALYSIS
         with analysis_tab1:
             if num_cols:
@@ -1082,7 +1084,7 @@ Provide:
 # TAB 5: EDIT DATA
 # ================================================
 
-with tab6:
+with tab5:
     st.header("✏️ Data Editor & Transformation")
     
     if st.session_state.df is None:
@@ -1195,41 +1197,44 @@ with tab6:
                     st.error(f"PCA Error: {str(e)[:50]}")
             
             # K-Means Clustering (Numeric + Categorical)
-            if st.checkbox("🎯 K-Means Clustering - Mixed Data Support"):
-                try:
-                    n_clusters = st.slider("Number of Clusters", 2, 10, 3)
-                    
-                    # Prepare data (both numeric and categorical)
-                    if cat_cols:
-                        transformed_data, preprocessor = prepare_data_for_ml(df, num_cols, cat_cols)
-                        if transformed_data is not None:
-                            kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-                            clusters = kmeans.fit_predict(transformed_data)
+                    try:
+                        n_clusters = st.slider("Number of Clusters", 2, 10, 3)
+
+                        # Prepare data (both numeric and categorical)
+                        if cat_cols:
+                            transformed_data, preprocessor = prepare_data_for_ml(df, num_cols, cat_cols)
+                            if transformed_data is not None:
+                                kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+                                clusters = kmeans.fit_predict(transformed_data)
+                            else:
+                                st.error("Could not prepare data for clustering")
+                                clusters = None
                         else:
-                            st.error("Could not prepare data for clustering")
-                            clusters = None
-                    else:
-                        scaler = StandardScaler()
-                        scaled_data = scaler.fit_transform(df[num_cols])
-                        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-                        clusters = kmeans.fit_predict(scaled_data)
-                    
-                    if clusters is not None:
-                        fig = px.scatter(
-                            x=df[num_cols[0]],
-                            y=df[num_cols[1]] if len(num_cols) > 1 else None,
-                            color=clusters,
-                            title=f"K-Means Clustering (K={n_clusters})",
-                            labels={'x': num_cols[0], 'y': num_cols[1] if len(num_cols) > 1 else '', 'color': 'Cluster'},
-                            color_discrete_sequence=px.colors.qualitative.Set1
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                        # Cluster distribution
-                        cluster_dist = pd.DataFrame({'Cluster': clusters, 'Count': 1}).groupby('Cluster').count()
-                        st.bar_chart(cluster_dist)
-                except Exception as e:
-                    st.error(f"Clustering Error: {str(e)[:100]}")
+                            scaler = StandardScaler()
+                            scaled_data = scaler.fit_transform(df[num_cols])
+                            kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+                            clusters = kmeans.fit_predict(scaled_data)
+
+                        if clusters is not None:
+                            # Ensure there are at least two numeric columns for a scatter
+                            x_vals = df[num_cols[0]]
+                            y_vals = df[num_cols[1]] if len(num_cols) > 1 else pd.Series([0]*len(df))
+
+                            fig = px.scatter(
+                                x=x_vals,
+                                y=y_vals,
+                                color=clusters,
+                                title=f"K-Means Clustering (K={n_clusters})",
+                                labels={'x': num_cols[0], 'y': num_cols[1] if len(num_cols) > 1 else '', 'color': 'Cluster'},
+                                color_discrete_sequence=px.colors.qualitative.Set1
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
+
+                            # Cluster distribution
+                            cluster_dist = pd.DataFrame({'Cluster': clusters, 'Count': 1}).groupby('Cluster').count()
+                            st.bar_chart(cluster_dist)
+                    except Exception as e:
+                        st.error(f"Clustering Error: {str(e)[:100]}")
         else:
             st.info("Need at least 2 numeric columns for advanced analytics")
 
@@ -1238,7 +1243,7 @@ with tab6:
 # TAB 7: REPORTS
 # ================================================
 
-with tab8:
+with tab7:
     st.header("🎯 Pattern Mining & Association Rules")
     
     if st.session_state.df is None:
