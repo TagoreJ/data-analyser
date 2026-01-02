@@ -874,7 +874,6 @@ with tab3:
         "🔗 Relationships",
         "📈 Distributions",
         "⚠️ Data Quality"
-    ])
         
         # NUMERIC ANALYSIS
         with analysis_tab1:
