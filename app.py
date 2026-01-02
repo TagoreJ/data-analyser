@@ -344,8 +344,12 @@ if "analysis_history" not in st.session_state:
 
 def handle_missing_values(df, numeric_strat="Median", categorical_strat="Most Frequent"):
     """Handle missing values separately for numeric and categorical columns"""
-    if df is None or df.empty:
-        return df
+    # Validate input; return None if invalid so callers can handle errors
+    if df is None or not isinstance(df, pd.DataFrame):
+        return None
+    if df.empty:
+        # Return a copy of the empty DataFrame to avoid accidental None
+        return df.copy()
     
     df_filled = df.copy()
     num_cols = df.select_dtypes(include='number').columns.tolist()
@@ -377,10 +381,13 @@ def handle_missing_values(df, numeric_strat="Median", categorical_strat="Most Fr
 
 def calculate_advanced_statistics(df):
     """Calculate comprehensive statistics for both numeric and categorical data"""
-    if df is None or df.empty or not isinstance(df, pd.DataFrame):
+    # Validate input strictly — raise on invalid inputs so callers must handle it
+    if df is None or not isinstance(df, pd.DataFrame):
+        raise ValueError("Invalid DataFrame passed to calculate_advanced_statistics")
+    if df.empty:
         return {
-            "shape": (0, 0),
-            "memory": 0.0,
+            "shape": df.shape,
+            "memory": df.memory_usage(deep=True).sum() / 1024**2,
             "numeric_cols": [],
             "categorical_cols": [],
             "missing_pct": {},
@@ -636,6 +643,7 @@ with tab1:
     
     with col2:
         sample_data = st.checkbox("📋 Use Sample Data")
+        debug_mode = st.checkbox("🔧 Show debug info (dev)", value=False)
     
     if sample_data:
         df = pd.DataFrame({
@@ -650,8 +658,19 @@ with tab1:
         })
         st.session_state.df = df
         st.session_state.df_cleaned = handle_missing_values(df, numeric_strategy, categorical_strategy)
-        st.session_state.df_stats = calculate_advanced_statistics(st.session_state.df_cleaned)
-        st.success("✅ Sample data loaded!")
+        # Validate cleaning result
+        if st.session_state.df_cleaned is None or not isinstance(st.session_state.df_cleaned, pd.DataFrame):
+            st.error("❌ Data cleaning failed for sample data. Please check the settings.")
+            if debug_mode:
+                st.write("DEBUG df_cleaned value:", st.session_state.df_cleaned)
+        else:
+            try:
+                st.session_state.df_stats = calculate_advanced_statistics(st.session_state.df_cleaned)
+                st.success("✅ Sample data loaded!")
+            except Exception as e:
+                st.error(f"❌ Error calculating stats: {e}")
+                if debug_mode:
+                    st.write("DEBUG df_cleaned type:", type(st.session_state.df_cleaned))
     
     elif uploaded:
         try:
@@ -660,11 +679,25 @@ with tab1:
             elif uploaded.name.endswith('.json'):
                 df = pd.read_json(uploaded)
             else:
-                df = pd.read_excel(uploaded)
+                df = pd.read_excel(uploaded, engine="openpyxl")
+                # Normalize column names to strings to avoid mixed-type header issues
+                df.columns = df.columns.astype(str)
             
             st.session_state.df = df
             st.session_state.df_cleaned = handle_missing_values(df, numeric_strategy, categorical_strategy)
-            st.session_state.df_stats = calculate_advanced_statistics(st.session_state.df_cleaned)
+            # Validate cleaning result before computing stats
+            if st.session_state.df_cleaned is None or not isinstance(st.session_state.df_cleaned, pd.DataFrame):
+                st.error("❌ Data cleaning failed. Please check your file structure (headers/dtypes) and try again.")
+                if debug_mode:
+                    st.write("DEBUG df_cleaned value:", st.session_state.df_cleaned)
+                st.stop()
+            try:
+                st.session_state.df_stats = calculate_advanced_statistics(st.session_state.df_cleaned)
+            except Exception as e:
+                st.error(f"❌ Error calculating stats: {e}")
+                if debug_mode:
+                    st.write("DEBUG df_cleaned type:", type(st.session_state.df_cleaned))
+                st.stop()
             st.success(f"✅ Loaded {df.shape[0]:,} rows × {df.shape[1]} columns")
         except Exception as e:
             st.error(f"❌ Error: {e}")
@@ -749,11 +782,14 @@ with tab2:
     if st.session_state.df is None or st.session_state.df.empty:
         st.info("👈 Upload data in the 'Upload & Explore' tab first")
     else:
-        df = st.session_state.df_cleaned
-        num_cols = df.select_dtypes(include='number').columns.tolist()
-        cat_cols = df.select_dtypes(include='object').columns.tolist()
-        
-        st.markdown("### 🎛️ Dashboard Controls")
+        if st.session_state.df_cleaned is None or not isinstance(st.session_state.df_cleaned, pd.DataFrame):
+            st.error("❌ Data cleaning failed. Please re-run with a different file or adjust cleaning settings.")
+        else:
+            df = st.session_state.df_cleaned
+            num_cols = df.select_dtypes(include='number').columns.tolist()
+            cat_cols = df.select_dtypes(include='object').columns.tolist()
+            
+            st.markdown("### 🎛️ Dashboard Controls")
         
         analysis_type = st.radio("Select Analysis Type", ["Numeric Analysis", "Categorical Analysis", "Mixed Analysis"])
         
@@ -855,17 +891,20 @@ with tab3:
     if st.session_state.df is None or st.session_state.df.empty:
         st.info("👈 Upload data first")
     else:
-        df = st.session_state.df_cleaned
-        num_cols = df.select_dtypes(include='number').columns.tolist()
-        cat_cols = df.select_dtypes(include='object').columns.tolist()
-        
-        analysis_tab1, analysis_tab2, analysis_tab3, analysis_tab4, analysis_tab5 = st.tabs([
-            "🔢 Numeric Analysis",
-            "🏷️ Categorical Analysis",
-            "🔗 Relationships",
-            "📈 Distributions",
-            "⚠️ Data Quality"
-        ])
+        if st.session_state.df_cleaned is None or not isinstance(st.session_state.df_cleaned, pd.DataFrame):
+            st.error("❌ Data cleaning failed. Please re-run with a different file or adjust cleaning settings.")
+        else:
+            df = st.session_state.df_cleaned
+            num_cols = df.select_dtypes(include='number').columns.tolist()
+            cat_cols = df.select_dtypes(include='object').columns.tolist()
+            
+            analysis_tab1, analysis_tab2, analysis_tab3, analysis_tab4, analysis_tab5 = st.tabs([
+                "🔢 Numeric Analysis",
+                "🏷️ Categorical Analysis",
+                "🔗 Relationships",
+                "📈 Distributions",
+                "⚠️ Data Quality"
+            ])
         
         with analysis_tab1:
             if num_cols and enable_anomaly:
@@ -968,11 +1007,14 @@ with tab4:
     if st.session_state.df is None or st.session_state.df.empty:
         st.info("👈 Upload data first")
     else:
-        df = st.session_state.df_cleaned
-        num_cols = df.select_dtypes(include='number').columns.tolist()
-        cat_cols = df.select_dtypes(include='object').columns.tolist()
-        
-        test_type = st.radio("Test Type", ["Normality (Shapiro-Wilk)", "Correlation", "T-Test"])
+        if st.session_state.df_cleaned is None or not isinstance(st.session_state.df_cleaned, pd.DataFrame):
+            st.error("❌ Data cleaning failed. Please re-run with a different file or adjust cleaning settings.")
+        else:
+            df = st.session_state.df_cleaned
+            num_cols = df.select_dtypes(include='number').columns.tolist()
+            cat_cols = df.select_dtypes(include='object').columns.tolist()
+            
+            test_type = st.radio("Test Type", ["Normality (Shapiro-Wilk)", "Correlation", "T-Test"])
         
         if test_type == "Normality (Shapiro-Wilk)" and num_cols:
             col_select = st.selectbox("Column", num_cols)
@@ -1033,13 +1075,16 @@ with tab5:
     elif not api_key:
         st.warning("⚠️ Enter OpenRouter API key in sidebar")
     else:
-        df = st.session_state.df_cleaned
-        
-        st.markdown("""
-        <div class="pro-feature">
-        🤖 Professional Data Analyst AI
-        </div>
-        """, unsafe_allow_html=True)
+        if st.session_state.df_cleaned is None or not isinstance(st.session_state.df_cleaned, pd.DataFrame):
+            st.error("❌ Data cleaning failed. Please re-run with a different file or adjust cleaning settings.")
+        else:
+            df = st.session_state.df_cleaned
+            
+            st.markdown("""
+            <div class="pro-feature">
+            🤖 Professional Data Analyst AI
+            </div>
+            """, unsafe_allow_html=True)
         
         # Chat history
         for msg in st.session_state.messages[-10:]:
@@ -1103,7 +1148,10 @@ with tab6:
     if st.session_state.df is None or st.session_state.df.empty:
         st.info("👈 Upload data first")
     else:
-        edited_df = st.data_editor(st.session_state.df_cleaned, num_rows="dynamic", use_container_width=True)
+        if st.session_state.df_cleaned is None or not isinstance(st.session_state.df_cleaned, pd.DataFrame):
+            st.error("❌ Data cleaning failed. Please re-run with a different file or adjust cleaning settings.")
+        else:
+            edited_df = st.data_editor(st.session_state.df_cleaned, num_rows="dynamic", use_container_width=True)
         
         col1, col2 = st.columns(2)
         with col1:
@@ -1125,9 +1173,12 @@ with tab7:
     if st.session_state.df is None or st.session_state.df.empty:
         st.info("👈 Upload data first")
     else:
-        df = st.session_state.df_cleaned
-        num_cols = df.select_dtypes(include='number').columns.tolist()
-        cat_cols = df.select_dtypes(include='object').columns.tolist()
+        if st.session_state.df_cleaned is None or not isinstance(st.session_state.df_cleaned, pd.DataFrame):
+            st.error("❌ Data cleaning failed. Please re-run with a different file or adjust cleaning settings.")
+        else:
+            df = st.session_state.df_cleaned
+            num_cols = df.select_dtypes(include='number').columns.tolist()
+            cat_cols = df.select_dtypes(include='object').columns.tolist()
         
         if len(num_cols) >= 2:
             if st.checkbox("🔵 PCA"):
@@ -1165,9 +1216,12 @@ with tab8:
     if st.session_state.df is None or st.session_state.df.empty:
         st.info("👈 Upload data first")
     else:
-        df = st.session_state.df_cleaned
-        num_cols = df.select_dtypes(include='number').columns.tolist()
-        cat_cols = df.select_dtypes(include='object').columns.tolist()
+        if st.session_state.df_cleaned is None or not isinstance(st.session_state.df_cleaned, pd.DataFrame):
+            st.error("❌ Data cleaning failed. Please re-run with a different file or adjust cleaning settings.")
+        else:
+            df = st.session_state.df_cleaned
+            num_cols = df.select_dtypes(include='number').columns.tolist()
+            cat_cols = df.select_dtypes(include='object').columns.tolist()
         
         pattern_type = st.radio("Analysis", ["Frequency", "Correlation Patterns", "Top N"])
         
@@ -1215,23 +1269,26 @@ with tab9:
     if st.session_state.df is None or st.session_state.df.empty:
         st.info("👈 Upload data first")
     else:
-        df = st.session_state.df_cleaned
-        
-        report_title = st.text_input("Report Title", "Analysis Report")
-        
-        if st.button("🚀 Generate Report"):
-            with st.spinner("Generating..."):
-                charts = []
-                num_cols = df.select_dtypes(include='number').columns.tolist()
-                
-                try:
-                    if len(num_cols) >= 1:
-                        fig = px.histogram(df, x=num_cols[0], title=f"{num_cols[0]} Distribution")
-                        chart_bytes = plotly_to_bytes(fig)
+        if st.session_state.df_cleaned is None or not isinstance(st.session_state.df_cleaned, pd.DataFrame):
+            st.error("❌ Data cleaning failed. Please re-run with a different file or adjust cleaning settings.")
+        else:
+            df = st.session_state.df_cleaned
+            
+            report_title = st.text_input("Report Title", "Analysis Report")
+            
+            if st.button("🚀 Generate Report"):
+                with st.spinner("Generating..."):
+                    charts = []
+                    num_cols = df.select_dtypes(include='number').columns.tolist()
+                    
+                    try:
+                        if len(num_cols) >= 1:
+                            fig = px.histogram(df, x=num_cols[0], title=f"{num_cols[0]} Distribution")
+                            chart_bytes = plotly_to_bytes(fig)
                         if chart_bytes:
                             charts.append(chart_bytes)
-                except:
-                    pass
+                    except:
+                        pass
                 
                 insights = [
                     f"📊 {df.shape[0]:,} rows × {df.shape[1]} columns",

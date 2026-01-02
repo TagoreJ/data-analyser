@@ -202,6 +202,18 @@ if "analysis_history" not in st.session_state:
 
 def calculate_advanced_statistics(df):
     """Calculate comprehensive statistics"""
+    if df is None or not isinstance(df, pd.DataFrame):
+        raise ValueError("Invalid DataFrame passed to calculate_advanced_statistics")
+    if df.empty:
+        return {
+            "shape": df.shape,
+            "memory": df.memory_usage(deep=True).sum() / 1024**2,
+            "numeric_cols": [],
+            "categorical_cols": [],
+            "missing_pct": {},
+            "duplicates": 0,
+            "numeric_stats": {},
+        }
     stats_dict = {
         "shape": df.shape,
         "memory": df.memory_usage(deep=True).sum() / 1024**2,
@@ -356,6 +368,7 @@ with tab1:
     
     with col2:
         sample_data = st.checkbox("📋 Use Sample Data")
+        debug_mode = st.checkbox("🔧 Show debug info (dev)", value=False)
     
     if sample_data:
         df = pd.DataFrame({
@@ -376,11 +389,18 @@ with tab1:
             elif uploaded.name.endswith('.json'):
                 df = pd.read_json(uploaded)
             else:
-                df = pd.read_excel(uploaded)
+                df = pd.read_excel(uploaded, engine="openpyxl")
+                df.columns = df.columns.astype(str)
             
             st.session_state.df = df
-            st.session_state.df_stats = calculate_advanced_statistics(df)
-            st.success(f"✅ Loaded {df.shape[0]:,} rows × {df.shape[1]} columns")
+            try:
+                st.session_state.df_stats = calculate_advanced_statistics(df)
+                st.success(f"✅ Loaded {df.shape[0]:,} rows × {df.shape[1]} columns")
+            except Exception as e:
+                st.error(f"❌ Error calculating stats: {e}")
+                if 'debug_mode' in locals() and debug_mode:
+                    st.write("DEBUG df type:", type(df))
+                # keep df in session but avoid crashing
         except Exception as e:
             st.error(f"❌ Error: {e}")
     
