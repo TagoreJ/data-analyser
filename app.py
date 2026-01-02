@@ -636,23 +636,27 @@ with tab1:
     if st.session_state.df is not None:
         df = st.session_state.df
         df_clean = st.session_state.df_cleaned
-        stats = st.session_state.df_stats
+        df_stats = st.session_state.df_stats
+        if df_stats is None:
+            # Ensure statistics are available even if session didn't compute them yet
+            df_stats = calculate_advanced_statistics(df_clean)
+            st.session_state.df_stats = df_stats
         
         st.markdown("### 📈 Dataset Statistics")
         
         # Metrics row
         m1, m2, m3, m4, m5 = st.columns(5)
         with m1:
-            st.metric("📊 Rows", f"{stats['shape'][0]:,}")
+            st.metric("📊 Rows", f"{df_stats['shape'][0]:,}")
         with m2:
-            st.metric("📋 Columns", stats['shape'][1])
+            st.metric("📋 Columns", df_stats['shape'][1])
         with m3:
-            st.metric("💾 Size (MB)", f"{stats['memory']:.2f}")
+            st.metric("💾 Size (MB)", f"{df_stats['memory']:.2f}")
         with m4:
-            missing_count = sum(1 for v in stats['missing_pct'].values() if v > 0)
+            missing_count = sum(1 for v in df_stats['missing_pct'].values() if v > 0)
             st.metric("❌ Missing Cols", missing_count)
         with m5:
-            st.metric("🔄 Duplicates", stats['duplicates'])
+            st.metric("🔄 Duplicates", df_stats['duplicates'])
         
         # Data Type Summary
         st.markdown("### 📊 Data Types Summary")
@@ -661,18 +665,18 @@ with tab1:
         with col_type1:
             st.markdown(f"""
             <div class="numeric-box">
-                <strong>🔢 Numeric Columns: {len(stats['numeric_cols'])}</strong><br>
-                {', '.join(stats['numeric_cols'][:5]) if stats['numeric_cols'] else 'None'}
-                {f'<br><small>+{len(stats["numeric_cols"])-5} more</small>' if len(stats['numeric_cols']) > 5 else ''}
+                <strong>🔢 Numeric Columns: {len(df_stats['numeric_cols'])}</strong><br>
+                {', '.join(df_stats['numeric_cols'][:5]) if df_stats['numeric_cols'] else 'None'}
+                {f'<br><small>+{len(df_stats["numeric_cols"])-5} more</small>' if len(df_stats['numeric_cols']) > 5 else ''}
             </div>
             """, unsafe_allow_html=True)
         
         with col_type2:
             st.markdown(f"""
             <div class="categorical-box">
-                <strong>🏷️ Categorical Columns: {len(stats['categorical_cols'])}</strong><br>
-                {', '.join(stats['categorical_cols'][:5]) if stats['categorical_cols'] else 'None'}
-                {f'<br><small>+{len(stats["categorical_cols"])-5} more</small>' if len(stats['categorical_cols']) > 5 else ''}
+                <strong>🏷️ Categorical Columns: {len(df_stats['categorical_cols'])}</strong><br>
+                {', '.join(df_stats['categorical_cols'][:5]) if df_stats['categorical_cols'] else 'None'}
+                {f'<br><small>+{len(df_stats["categorical_cols"])-5} more</small>' if len(df_stats['categorical_cols']) > 5 else ''}
             </div>
             """, unsafe_allow_html=True)
         
@@ -682,10 +686,10 @@ with tab1:
         # Data Quality Report
         st.markdown("### 🔍 Data Quality Report")
         
-        if stats['missing_pct']:
+        if df_stats['missing_pct']:
             missing_df = pd.DataFrame({
-                'Column': stats['missing_pct'].keys(),
-                'Missing %': stats['missing_pct'].values()
+                'Column': df_stats['missing_pct'].keys(),
+                'Missing %': df_stats['missing_pct'].values()
             }).sort_values('Missing %', ascending=False)
             
             missing_df = missing_df[missing_df['Missing %'] > 0]

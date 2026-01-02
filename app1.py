@@ -387,23 +387,26 @@ with tab1:
     # Display data statistics
     if st.session_state.df is not None:
         df = st.session_state.df
-        stats = st.session_state.df_stats
+        df_stats = st.session_state.df_stats
+        if df_stats is None:
+            df_stats = calculate_advanced_statistics(df)
+            st.session_state.df_stats = df_stats
         
         st.markdown("### 📈 Dataset Statistics")
         
         # Metrics row
         m1, m2, m3, m4, m5 = st.columns(5)
         with m1:
-            st.metric("📊 Rows", f"{stats['shape'][0]:,}")
+            st.metric("📊 Rows", f"{df_stats['shape'][0]:,}")
         with m2:
-            st.metric("📋 Columns", stats['shape'][1])
+            st.metric("📋 Columns", df_stats['shape'][1])
         with m3:
-            st.metric("💾 Size (MB)", f"{stats['memory']:.2f}")
+            st.metric("💾 Size (MB)", f"{df_stats['memory']:.2f}")
         with m4:
-            missing_count = sum(1 for v in stats['missing_pct'].values() if v > 0)
+            missing_count = sum(1 for v in df_stats['missing_pct'].values() if v > 0)
             st.metric("❌ Missing Cols", missing_count)
         with m5:
-            st.metric("🔄 Duplicates", stats['duplicates'])
+            st.metric("🔄 Duplicates", df_stats['duplicates'])
         
         st.markdown("### 👀 Data Preview")
         st.dataframe(df.head(20), use_container_width=True)
@@ -413,7 +416,7 @@ with tab1:
         col1, col2 = st.columns(2)
         
         with col1:
-            numeric_str = ", ".join(stats['numeric_cols'][:5]) if stats['numeric_cols'] else "None"
+            numeric_str = ", ".join(df_stats['numeric_cols'][:5]) if df_stats['numeric_cols'] else "None"
             st.markdown(f"""
             <div class="insight-box">
                 <strong>✅ Numeric Columns:</strong><br>
