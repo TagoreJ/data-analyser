@@ -245,16 +245,10 @@ SYSTEM_PROMPT_DATA_ANALYST = """You are an EXPERT DATA ANALYST with 15+ years of
 # ================================================
 
 FREE_MODELS = {
-    "🌟 Gemini 2.0 Flash (BEST - 10M context)": "google/gemini-2.0-flash-exp:free",
-    "🚀 Llama 3.1 405B (Powerful & Fast)": "meta-llama/llama-3.1-405b-instruct:free",
-    "🎯 Hermes 3 405B (Best for Analysis)": "nousresearch/hermes-3-llama-3.1-405b:free",
-    "💻 Qwen3 Coder 480B (Coding Expert)": "qwen/qwen3-coder:free",
+
     "🧠 DeepSeek R1 0528 (Reasoning)": "deepseek/deepseek-r1-0528:free",
     "⚙️ MiMo-V2-Flash (Lightweight)": "xiaomi/mimo-v2-flash:free",
-    "🔧 KAT-Coder-Pro (Data Analysis)": "kwaipilot/kat-coder-pro:free",
-    "🌍 GLM 4.5 Air (Balanced)": "z-ai/glm-4.5-air:free",
     "📊 Trinity Mini (Fast Analysis)": "arcee-ai/trinity-mini:free",
-    "🎨 Mistral 7B (Lightweight)": "mistralai/mistral-7b-instruct:free",
     "🦾 Llama 3.3 70B (Balanced Power)": "meta-llama/llama-3.3-70b-instruct:free",
     "🧩 Nemotron 3 Nano (Ultra-Fast)": "nvidia/nemotron-3-nano-30b-a3b:free",
 }
